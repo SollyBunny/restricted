@@ -1,0 +1,19 @@
+
+
+<p> Click on the window, then use controls TFGH</p>
+
+<script defer>
+	const ws = new WebSocket(`wss://${document.location.host}${document.location.pathname.slice(0, document.location.pathname.lastIndexOf("/", document.location.pathname.length - 2) + 1)}stubserverserver?client`);
+	ws.onclose = () => {
+		alert("Connection closed!");
+	};
+	ws.onopen = () => {
+		alert("Connection open!");
+	}
+	document.onkeydown = event => {
+		ws.send("d" + event.key);
+	};
+	document.onkeyup = event => {
+		ws.send("u" + event.key);
+	};
+</script>

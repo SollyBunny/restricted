@@ -2,249 +2,267 @@
 const can = document.getElementById("can");
 const ctx = can.getContext("2d");
 
-let scale = 1, radius = 1;
+const perf = {
+	lastReset: -Infinity,
+	fps: [0, 0, 0, 0],
+	render: [0, 0, 0, 0],
+	physics: [0, 0, 0, 0],
+};
+
+let scale = 1, radius = 500, aspect = 1;
+let width, height;
 let offset = { x: 0, y: 0 };
+const size = 500;
 function resize() {
-    can.width = can.clientWidth;
-    can.height = can.clientHeight;
-    scale = Math.min(can.width, can.height) / 500;
-    radius = Math.max(can.width, can.height) * scale;
+	can.width = can.clientWidth;
+	can.height = can.clientHeight;
+	scale = Math.min(can.width, can.height) / size;
+	radius = Math.max(can.width, can.height) / scale * 1.2;
+	aspect = can.width / can.height;
+	width = can.width / scale;
+	height = can.height / scale;
 }
 resize();
 window.addEventListener("resize", resize);
 
 const engine = Matter.Engine.create();
 engine.world.gravity.scale = 0;
-engine.positionIterations *= 2;
-engine.constraintIterations *= 2;
-engine.velocityIterations *= 2;
+engine.enableSleeping = true;
+// engine.positionIterations *= 2;
+// engine.constraintIterations *= 2;
+// engine.velocityIterations *= 2;
 
-function ropeCreate(a, b, length) {
-    const rope = Matter.Composite.create({
-        name: "rope",
-    });
-    rope.plugin.ropeStart = a;
-    rope.plugin.ropeEnd = b;
-    rope.plugin.ropeLength = length;
-    const segment = 6;
-    const divs = length / segment;
-    let positionOld;
-    let position = a.position;
-    let lastRect = undefined;
-    let firstRect = undefined;
-    for (let i = 1; i < divs; ++i) {
-        const lerp = i / divs;
-        const alerp = 1 - lerp;
-        positionOld = position;
-        position = Matter.Vector.create(
-            a.position.x * alerp + b.position.x * lerp,
-            a.position.y * alerp + b.position.y * lerp,
-        );
-        const angle = Matter.Vector.angle(a.position, b.position);
-        const rect = Matter.Bodies.rectangle(
-            positionOld.x, positionOld.y,
-            segment, 5,
-            {
-                friction: 0,
-            }
-        );
-        if (!firstRect) {
-            firstRect = rect;
-        }
-        Matter.Body.rotate(rect, angle, positionOld);
-        if (lastRect) {
-            Matter.Composite.add(rope, rect);
-            const constraint = Matter.Constraint.create({
-                bodyA: lastRect,
-                bodyB: rect,
-                pointA: Matter.Vector.create(4, 0),
-                pointB: Matter.Vector.create(-4, 0),
-                stiffness: 1,
-                length: 0
-            });
-            Matter.Composite.addConstraint(engine.world, constraint);
-        }
-        lastRect = rect;
-    }
-    Matter.Composite.addConstraint(engine.world, Matter.Constraint.create({
-        bodyA: a,
-        bodyB: firstRect,
-        pointA: Matter.Vector.create(-1, 0),
-        pointB: Matter.Vector.create(-5, 0),
-        stiffness: 0.8,
-        length: 0
-    }));
-    Matter.Composite.addConstraint(engine.world, Matter.Constraint.create({
-        bodyA: b,
-        bodyB: lastRect,
-        pointA: Matter.Vector.create(11, 0),
-        pointB: Matter.Vector.create(5, 0),
-        stiffness: 0.8,
-        length: 0
-    }));
-    Matter.Composite.add(engine.world, rope);
+function randomPtInRectMinusCenter(min, max) {
+	max *= size;
+	min *= size;
+	const dis = max - min;
+	let i = 0;
+	while (1) {
+		let x = (Math.random() - 0.5) * (width + max);
+		let y = (Math.random() - 0.5) * (height + max);
+		i += 1;
+		if (i > 100) console.log("aghhh")
+		if (i > 50 || (
+			(x < (-min - width) / 2 || x > (min + width) / 2) ||
+			(y < (-min - height) / 2 || y > (min + height) / 2)
+		)) {
+			return { x: x + offset.x, y: y + offset.y };
+		}
+	}
 }
-
-const players = [];
-
-function playerCreate() {
-    const num = players.length;
-    const player = Matter.Bodies.circle(
-        (num % 2 == 0 ? -20 : 20) * (Math.floor(num / 2) + 1), 0, 10,
-        {
-            name: "player",
-            frictionAir: 0.2
-        }
-    );
-
-    players.forEach(p => {
-        ropeCreate(player, p, 100);
-    });
-
-    Matter.Composite.add(engine.world, player);
-    players.push(player);
-
+function sideX(a) {
+	a -= offset.x;
+	if (Math.abs(a) < width / 2) {
+		return a / (width / 2);
+	}
+	return (a - (width / 2 * Math.sign(a))) / size * 2 + Math.sign(a);
 }
-playerCreate();
-playerCreate();
-
-function playerController(player, up, left, down, right) {
-    const vert = (keys[down] ? 1 : 0) - (keys[up] ? 1 : 0);
-    const hori = (keys[right] ? 1 : 0) - (keys[left] ? 1 : 0);
-    let mag = 0.001;
-    if (vert !== 0 && hori !== 0) {
-        mag /= Math.SQRT2;
-    }
-    Matter.Body.applyForce(
-        player, player.position,
-        Matter.Vector.create(
-            hori * mag,
-            vert * mag
-        )
-    );
+function sideY(a) {
+	a -= offset.y;
+	if (Math.abs(a) < height / 2) {
+		return a / (height / 2);
+	}
+	return (a - (height / 2 * Math.sign(a))) / size * 2 + Math.sign(a);
 }
-
-const obstacles = [];
-
-function obstacleCreate() {
-    const obstacle = Matter.Composite.create({
-        "name": obstacle
-    });
-    let position = Matter.Vector.create(0, 0);
-    for (let i = 0; i < Math.random() * 5; ++i) {
-        positionOld = position;
-        const mag = Math.random() * 5 + 3;
-        const dir = Math.random() * 2 * Math.PI;
-        position = Matter.Vector.add(positionOld, Matter.Vector.create(
-            Math.sin(dir) * mag,
-            Math.cos(dir) * mag
-        ));
-        const rect = Matter.Bodies.rect(
-            positionOld.x, positionOld.y,
-            mag, 10
-        );
-        Matter.Body.rotate(dir);
-        Matter.Composite.add(obstacle, rect);
-    }
-    Matter.Composite.add(world.engine, obstacle);
-    obstacles.push(obstacle);
+function outside(vec, by) {
+	by = by || 1.1;
+	if (Math.abs(sideX(vec.x)) > by) return true;
+	if (Math.abs(sideY(vec.y)) > by) return true;
+	return false;
 }
-
-const keys = {};
-window.addEventListener("keydown", event => {
-    const key = event.key.toLowerCase();
-    keys[key] = true;
-});
-window.addEventListener("keyup", event => {
-    const key = event.key.toLowerCase();
-    keys[key] = false;
-});
 
 let timeOld = performance.now(), timeDelta = 1;
 function frame() {
-    window.requestAnimationFrame(frame);
-    timeNow = performance.now();
-    timeDelta = timeNow - timeOld;
-    timeOld = timeNow;
+	window.requestAnimationFrame(frame);
+	timeNow = performance.now();
+	timeDelta = Math.min(timeNow - timeOld, 60);
+	timeOld = timeNow;
 
-    offset.x -= timeDelta / 30;
+	{
+		const x = timeNow / 5000000;
+		const dir = (
+			Math.cos(5 * x) * Math.sin(4 * x) +
+			Math.sin(3 * x) * Math.cos(2 * x)
+		) * 2 * Math.PI;
+		const mag = timeDelta / 30;
+		offset.x += Math.sin(dir) * mag;
+		offset.y += Math.cos(dir) * mag;
+	}
 
-    // Player Controller
-    playerController(players[0], "w", "a", "s", "d");
-    playerController(players[1], "t", "f", "g", "h");
+	for (let i = grass.size; i < size; ++i) {
+		new Grass();
+	}
 
-    // Render
-    ctx.resetTransform();
-    ctx.clearRect(0, 0, can.width, can.height);
-    ctx.translate(can.width / 2, can.height / 2);
-    ctx.scale(scale, scale);
-    ctx.translate(offset.x, offset.y);
-    engine.world.composites.forEach(body => {
-        switch (body.name) {
-            case "rope": {
-                ctx.lineCap = "round";
-                ctx.lineJoin = "round";
-                ctx.beginPath();
-                ctx.moveTo(body.plugin.ropeStart.position.x, body.plugin.ropeStart.position.y);
-                let i;
-                for (i = 1; i < body.bodies.length - 1; ++i) {
-                    const xc = (body.bodies[i].position.x + body.bodies[i + 1].position.x) / 2;
-                    const yc = (body.bodies[i].position.y + body.bodies[i + 1].position.y) / 2;
-                    ctx.quadraticCurveTo(body.bodies[i].position.x, body.bodies[i].position.y, xc, yc);
-                }
-                ctx.quadraticCurveTo(body.bodies[i].position.x, body.bodies[i].position.y, body.plugin.ropeEnd.position.x, body.plugin.ropeEnd.position.y);
-                ctx.lineWidth = 2;
-                const hue = (
-                    body.plugin.ropeLength - 
-                    Matter.Vector.magnitude(Matter.Vector.sub(body.plugin.ropeStart.position, body.plugin.ropeEnd.position))
-                );
-                ctx.strokeStyle = `hsl(${hue}deg 50% 50%)`;
-                ctx.stroke();
-                break;
-            }
-        }
-    });
-    engine.world.bodies.forEach(body => {
-        switch (body.name) {
-            case "player": {
-                ctx.beginPath();
-                ctx.arc(body.position.x, body.position.y, 10, 0, Math.PI * 2);
-                ctx.fillStyle = "black";
-                ctx.fill();
-                break;
-            }
-            case "obstacle": {
-                ctx.lineCap = "round";
-                ctx.lineJoin = "round";
-                ctx.beginPath();
-                ctx.moveTo(body.plugin.ropeStart.position.x, body.plugin.ropeStart.position.y);
-                for (let i = 1; i < body.bodies.length; ++i) {
-                    ctx.lineTo(body.bodies[i].position.x, body.bodies[i].position.y, xc, yc);
-                }
-                ctx.lineWidth = 10;
-                ctx.strokeStyle = "gray";
-                ctx.stroke();
-                break;
-            }
-        }
-    });
+	// Render
+	ctx.resetTransform();
+	ctx.fillStyle = "#d4ef69";
+	ctx.fillRect(0, 0, can.width, can.height);
+	ctx.translate(can.width / 2, can.height / 2);
+	if (window.debug && window.debugscale) {
+		ctx.scale(scale / window.debugscale, scale / window.debugscale);
+	} else {
+		ctx.scale(scale, scale);
+	}
+	ctx.translate(-offset.x, -offset.y);
 
-    // Debug Render
-    if (window.debug) {
-        Matter.Composite.allBodies(engine.world).forEach(body => {
-            ctx.beginPath();
-            ctx.moveTo(body.vertices[0].x, body.vertices[0].y);
-            for (let i = 1; i < body.vertices.length; ++i) {
-                ctx.lineTo(body.vertices[i].x, body.vertices[i].y);
-            }
-            ctx.lineTo(body.vertices[0].x, body.vertices[0].y);
-            ctx.strokeStyle = "blue";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        });
-    }
+	if (floors.size < 5) {
+		new Floor(...createFloor());
+	}
+	if (obstacles.size < 10) {
+		new Obstacle(...createObstacle());
+	}
+	if (zombs.size < 30) {
+		new Zomb(...createZomb());
+	}
+
+	floors.forEach(i => { i.render(); i.update(); });
+	grass.forEach(i => { i.render(); i.update(); });
+	obstacles.forEach(i => { i.render(); i.update(); });
+	zombs.forEach(i => { i.render(); i.update(); });
+	ropes.forEach(i => { i.render(); i.update(); });
+	players.forEach(i => { i.update(); i.render(); })
+
+	if (window.debug) {
+		if (p1) p1.hp = 1.5;
+		if (p2) p2.hp = 1.5;
+		perf.render[0] = performance.now() - timeNow;
+		perf.physics[0] = engine.timing.lastElapsed;
+		perf.fps[0] = 1000 / timeDelta;
+		// TODO: avg, min, max, reset
+		// Debug Camera Outline
+		const colors = ["red", "orange", "yellow", "lime", "green", "cyan", "blue"];
+		ctx.lineWidth = 5;
+		for (let i = 0; i < colors.length; ++i) {
+			ctx.strokeStyle = colors[i];
+			ctx.strokeRect(
+				-width / 2 - size * i / 2 + offset.x,
+				-height / 2 - size * i / 2 + offset.y,
+				width + size * i,
+				height + size * i
+			);	
+		}
+		// Debug Render
+		const outline = new Path2D();
+		const centers = new Path2D();
+		const constraints = new Path2D();
+		Matter.Composite.allBodies(engine.world).forEach(body => {
+			centers.moveTo(body.vertices[0].x, body.vertices[0].y);
+			centers.arc(body.position.x, body.position.y, 2, 0, 2 * Math.PI)
+			outline.moveTo(body.vertices[0].x, body.vertices[0].y);
+			for (let i = 1; i < body.vertices.length; ++i) {
+				outline.lineTo(body.vertices[i].x, body.vertices[i].y);
+			}
+			outline.lineTo(body.vertices[0].x, body.vertices[0].y);
+		});
+		Matter.Composite.allConstraints(engine.world).forEach(constraint => {
+			let a = Matter.Vector.create();
+			if (constraint.bodyA) a = Matter.Vector.add(a, constraint.bodyA.position);
+			if (constraint.pointA) a = Matter.Vector.add(a, constraint.pointA);
+			let b = Matter.Vector.create();
+			if (constraint.bodyB) b = Matter.Vector.add(b, constraint.bodyB.position);
+			if (constraint.pointB) b = Matter.Vector.add(b, constraint.pointB);
+			constraints.moveTo(a.x, a.y);
+			constraints.lineTo(b.x, b.y);
+		});
+		ctx.lineWidth = 1;
+		ctx.lineCap = "round";
+		ctx.lineJoin = "round";
+		ctx.strokeStyle = "blue";
+		ctx.stroke(outline);
+		ctx.fillStyle = "#f00";
+		ctx.fill(centers);
+		ctx.lineWidth = 3;
+		ctx.strokeStyle = "#0f0";
+		ctx.stroke(constraints);
+		// Draw debug text
+		{
+			ctx.resetTransform();
+			ctx.fillStyle = "black";
+			ctx.textBaseline = "top";
+			const size = 20;
+			ctx.font = `${size}px sans-serif`;
+			ctx.fillText(`FPS: ${perf.fps[0].toFixed(1)}`, 5, 5);
+			ctx.fillText(`Render: ${perf.render[0].toFixed(1)}ms`, 5, 5 + size);
+			ctx.fillText(`Physics: ${perf.physics[0].toFixed(1)}ms`, 5, 5 * 2 + size * 2);
+			ctx.fillText(`Offset: ${offset.x.toFixed(1)}, ${offset.y.toFixed(1)}`, 5, 5 * 3 + size * 3);
+		}
+		// Debug Update
+		if (!window.debugscale) window.debugscale = 1;
+		if (keys["A"]) offset.x -= timeDelta * window.debugscale;
+		if (keys["D"]) offset.x += timeDelta * window.debugscale;
+		if (keys["W"]) offset.y -= timeDelta * window.debugscale;
+		if (keys["S"]) offset.y += timeDelta * window.debugscale;
+		if (keys["Q"]) {
+			window.debugscale -= 0.1;
+			if (window.debugscale < 0.2) window.debugscale = 0.1;
+		}
+		if (keys["E"]) {
+			window.debugscale += 0.1;
+		}
+	}
 }
 window.requestAnimationFrame(frame);
 
 const runner = Matter.Runner.create();
 Matter.Runner.run(runner, engine);
+
+function clearContainer(container) {
+	for (const obj of container) {
+		obj.del();
+	}
+	container.clear();
+}
+
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+async function die(force) {
+	if (!force) {
+		for (const player of players) {
+			// Not everyone's dead yet!
+			if (player.hp > 0) return;
+		}
+	}
+	for (const rope of ropes) {
+		rope.disconnect();
+	}
+	for (let i = 0; i < 300; ++i) {
+		new Zomb(...createZomb());
+		await sleep(5);
+	}
+	reset();
+}
+function reset() {
+	[zombs, floors, grass, obstacles, players, ropes].forEach(clearContainer);
+	offset.x = 0;
+	offset.y = 0;
+	keys = {};
+	new Floor(...createFloor());
+	p1 = new Player();
+	p2 = new Player("t", "f", "g", "h");
+	for (let i = 0; i < size; ++i) {
+		new Grass(true);
+	}
+}
+
+let p1, p2;
+function updateControl(p, up, left, down, right) {
+	p.vert = (keys[down] ? 1 : 0) - (keys[up] ? 1 : 0);
+	p.hori = (keys[right] ? 1 : 0) - (keys[left] ? 1 : 0);
+}
+function updateControls() {
+	updateControl(p1, "w", "a", "s", "d");
+	updateControl(p2, "t", "f", "g", "h");
+}
+
+window.addEventListener("keydown", event => {
+	keys[event.key.toLowerCase()] = keys[event.key] = true;
+	updateControls();
+});
+window.addEventListener("keyup", event => {
+	if (event.key === "B") {
+		window.debug = 1 - (window.debug || 0);
+	}
+	keys[event.key.toLowerCase()] = keys[event.key] = false;
+	updateControls();
+});
+
+reset();

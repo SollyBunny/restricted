@@ -1,0 +1,40 @@
+// ZISS WSSCRIPT
+
+let host, client;
+
+module.exports.open = (ws) => {
+	switch (ws.url.query) {
+		case "host":
+			if (host) {
+				ws.close();
+				return;
+			}
+			host = ws;
+			break;
+		case "client":
+			if (client) {
+				ws.close();
+				return;
+			}
+			client = ws;
+			break;
+		default:
+			ws.close();
+			return;
+	}
+}
+
+module.exports.close = (ws) => {
+	if (ws === host) {
+		host = undefined;
+	}
+	if (ws === client) {
+		client = undefined;
+	}
+}
+
+module.exports.msg = (ws, msg) => {
+	if (ws !== client) return;
+	if (host)
+		host.send(msg.toString())
+};

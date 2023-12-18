@@ -155,6 +155,7 @@ class Rope extends Sprite {
 				})
 				this.disconnect();
 				window.setTimeout(() => {
+					if (engine.world.bodies.indexOf(this.a) === -1) return;
 					new Rope(this.a, this.b, this.length);
 				}, 2000);
 			}
@@ -270,7 +271,6 @@ class Player extends Sprite {
 		if (this.hp <= 0) return;
 		if (outside(this.body.position, 1.1)) {
 			this.hp = 0;
-			this.color = "gray";
 			die();
 			return;
 		} else if (this.hp < 1) {
@@ -300,6 +300,7 @@ class Player extends Sprite {
 		);
 	}
 	render() {
+		const color = this.hp <= 0 ? "gray" : this.color;
 		ctx.save();
 		ctx.translate(this.body.position.x, this.body.position.y)
 		ctx.lineCap = "round";
@@ -313,10 +314,10 @@ class Player extends Sprite {
 			ctx.rect(-this.radius * 1.5, -this.radius * 1.5, this.radius * 3, this.radius * 0.2)
 			ctx.fill();
 			ctx.stroke();
-			ctx.fillStyle = this.color;
+			ctx.fillStyle = color;
 			ctx.fillRect(-this.radius * 1.5, -this.radius * 1.5, this.radius * 3 * this.hp, this.radius * 0.2);
 		} else {
-			ctx.fillStyle = this.color;
+			ctx.fillStyle = color;
 		}
 		// Player
 		ctx.beginPath();
@@ -532,11 +533,12 @@ class Obstacle extends Sprite {
 const zombs = new Set();
 class Zomb extends Sprite {
 	container = zombs;
-	constructor(x, y, color, radius, speed) {
+	constructor(x, y, color, radius, speed, ai) {
 		super();
 		this.speed = speed;
 		this.radius = radius;
 		this.color = color;
+		this.ai = ai;
 		this.body = Matter.Bodies.circle(
 			x, y,
 			this.radius,
@@ -558,7 +560,7 @@ class Zomb extends Sprite {
 				return
 			}
 		}
-		// Follow
+		// Do AI
 		let playerClosest = undefined;
 		let playerDistance = Infinity;
 		for (const player of players) {
@@ -573,10 +575,24 @@ class Zomb extends Sprite {
 				playerClosest = player;
 			}
 		}
-		const force = Matter.Vector.normalise(Matter.Vector.sub(
-			playerClosest ? playerClosest.body.position : Matter.Vector.create(offset.x + Math.sin(this.body.angle) * size, offset.y + Math.cos(this.body.angle) * size),
-			this.body.position
-		));
+		let force;
+		switch (this.ai) {
+			case 0:
+				force = Matter.Vector.normalise(Matter.Vector.sub(
+					playerClosest ? playerClosest.body.position : Matter.Vector.create(offset.x + Math.sin(this.body.angle) * size, offset.y + Math.cos(this.body.angle) * size),
+					this.body.position
+				));
+				break;
+			case 1:
+				force = Matter.Vector.normalise(Matter.Vector.sub(
+					playerClosest ? playerClosest.body.position : Matter.Vector.create(offset.x + Math.sin(this.body.angle) * size, offset.y + Math.cos(this.body.angle) * size),
+					this.body.position
+				));
+				force = Matter.Vector.rotate(force, Math.PI / 3);
+				break;
+			default:
+				return;
+		}
 		Matter.Body.applyForce(this.body, 
 			Matter.Vector.add(this.body.position, Matter.Vector.mult(Matter.Vector.rotate(force, Math.PI / 2), this.radius * 1)),
 			Matter.Vector.mult(force, this.speed)

@@ -215,6 +215,7 @@ function clearContainer(container) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 async function die(force) {
+	if (window.debug) return;
 	if (!force) {
 		for (const player of players) {
 			// Not everyone's dead yet!
@@ -223,10 +224,6 @@ async function die(force) {
 	}
 	for (const rope of ropes) {
 		rope.disconnect();
-	}
-	for (let i = 0; i < 300; ++i) {
-		new Zomb(...createZomb());
-		await sleep(5);
 	}
 	reset();
 }
@@ -250,7 +247,7 @@ function updateControl(p, up, left, down, right) {
 }
 function updateControls() {
 	updateControl(p1, "w", "a", "s", "d");
-	updateControl(p2, "t", "f", "g", "h");
+	updateControl(p2, "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight");
 }
 
 window.addEventListener("keydown", event => {

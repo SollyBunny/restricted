@@ -111,7 +111,7 @@ function frame() {
 	if (obstacles.size < 10) {
 		new Obstacle(...createObstacle());
 	}
-	if (zombs.size < 30) {
+	if (zombs.size < 40) {
 		new Zomb(...createZomb());
 	}
 

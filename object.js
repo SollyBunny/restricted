@@ -235,7 +235,7 @@ class Player extends Sprite {
 		this.color = playerColors[num];
 		this.speed = 0.003;
 		for (const other of players) {
-			new Rope(this.body, other.body, 100);
+			new Rope(this.body, other.body, 150);
 		};
 		this.add();
 	}

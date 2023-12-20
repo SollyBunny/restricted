@@ -9,10 +9,11 @@ const perf = {
 	physics: [0, 0, 0, 0],
 };
 
-let scale = 1, radius = 500, aspect = 1;
+const size = 1000;
+const sizeChunk = 500;
+let scale = 1, radius = size + sizeChunk, aspect = 1;
 let width, height;
 let offset = { x: 0, y: 0 };
-const size = 500;
 function resize() {
 	can.width = can.clientWidth;
 	can.height = can.clientHeight;
@@ -33,8 +34,8 @@ engine.enableSleeping = true;
 // engine.velocityIterations *= 2;
 
 function randomPtInRectMinusCenter(min, max) {
-	max *= size;
-	min *= size;
+	max *= sizeChunk;
+	min *= sizeChunk;
 	const dis = max - min;
 	let i = 0;
 	while (1) {
@@ -55,14 +56,14 @@ function sideX(a) {
 	if (Math.abs(a) < width / 2) {
 		return a / (width / 2);
 	}
-	return (a - (width / 2 * Math.sign(a))) / size * 2 + Math.sign(a);
+	return (a - (width / 2 * Math.sign(a))) / sizeChunk * 2 + Math.sign(a);
 }
 function sideY(a) {
 	a -= offset.y;
 	if (Math.abs(a) < height / 2) {
 		return a / (height / 2);
 	}
-	return (a - (height / 2 * Math.sign(a))) / size * 2 + Math.sign(a);
+	return (a - (height / 2 * Math.sign(a))) / sizeChunk * 2 + Math.sign(a);
 }
 function outside(vec, by) {
 	by = by || 1.1;
@@ -111,7 +112,7 @@ function frame() {
 	if (obstacles.size < 10) {
 		new Obstacle(...createObstacle());
 	}
-	if (zombs.size < 40) {
+	if (zombs.size < 100) {
 		new Zomb(...createZomb());
 	}
 
@@ -135,10 +136,10 @@ function frame() {
 		for (let i = 0; i < colors.length; ++i) {
 			ctx.strokeStyle = colors[i];
 			ctx.strokeRect(
-				-width / 2 - size * i / 2 + offset.x,
-				-height / 2 - size * i / 2 + offset.y,
-				width + size * i,
-				height + size * i
+				-width / 2 - sizeChunk * i / 2 + offset.x,
+				-height / 2 - sizeChunk * i / 2 + offset.y,
+				width + sizeChunk * i,
+				height + sizeChunk * i
 			);	
 		}
 		// Debug Render

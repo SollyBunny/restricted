@@ -269,17 +269,23 @@ class Player extends Sprite {
 		}
 		// Die
 		if (this.hp <= 0) return;
+		for (const rope of ropes) {
+			const collides = Matter.Query.collides(this.body, rope.body.bodies);
+			if (collides.length > 2) {
+				this.hp -= timeDelta / 2000;
+			}
+		}
 		if (outside(this.body.position, 1.1)) {
 			this.hp = 0;
 			die();
 			return;
 		} else if (this.hp < 1) {
-			this.hp += timeDelta / 10000;
+			this.hp += timeDelta / 20000;
 			if (this.hp > 1) this.hp = 1;
 		}
 		for (const zomb of zombs) {
 			if (Matter.Collision.collides(this.body, zomb.body, engine.pairs)) {
-				this.hp -= timeDelta * 0.01;
+				this.hp -= timeDelta / 2000;
 				if (this.hp <= 0) {
 					this.hp = 0;
 					this.color = "gray";
@@ -363,7 +369,7 @@ class Floor extends Sprite {
 		}
 	}
 	update() {
-		if (outside(this.body.position, 3)) {
+		if (outside(this.body.position, 4)) {
 			this.del();
 		}
 	}
@@ -563,8 +569,13 @@ class Zomb extends Sprite {
 		// Do AI
 		let playerClosest = undefined;
 		let playerDistance = Infinity;
-		for (const player of players) {
-			if (player.hp <= 0) continue;
+		for (const player of (this.ai === 2 ? zombs : players)) {
+			if (this.ai === 2) {
+				if (this.ai !== 0) continue;
+				if (this === player) continue;
+			} else {
+				if (player.hp <= 0) continue;
+			}
 			const dis = Matter.Vector.magnitudeSquared(
 				Matter.Vector.sub(
 					player.body.position, this.body.position
@@ -578,6 +589,7 @@ class Zomb extends Sprite {
 		let force;
 		switch (this.ai) {
 			case 0:
+			case 2:
 				force = Matter.Vector.normalise(Matter.Vector.sub(
 					playerClosest ? playerClosest.body.position : Matter.Vector.create(offset.x + Math.sin(this.body.angle) * size, offset.y + Math.cos(this.body.angle) * size),
 					this.body.position
